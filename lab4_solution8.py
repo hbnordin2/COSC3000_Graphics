@@ -49,7 +49,7 @@ def buildShader(vertexShaderSource, fragmentShaderSource):
         glUseProgram(0)
     return shader
 
-
+ 
 
 g_reloadTimeout = 1.0
 def update(dt, keys, mouseDelta):
