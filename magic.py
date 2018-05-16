@@ -539,6 +539,8 @@ def runProgram(title, startWidth, startHeight, renderFrame, initResources = None
     currentTime = glfw.get_time()
     prevMouseX,prevMouseY = glfw.get_cursor_pos(window)
 
+    time = 0
+
     while not glfw.window_should_close(window):
         prevTime = currentTime
         currentTime = glfw.get_time()
@@ -582,7 +584,7 @@ def runProgram(title, startWidth, startHeight, renderFrame, initResources = None
 
         drawWidth -= uiWidth
 
-        renderFrame(uiWidth, drawWidth, height)
+        renderFrame(uiWidth, drawWidth, height, time)
     
         #drawCoordinateSystem()
 
@@ -598,6 +600,8 @@ def runProgram(title, startWidth, startHeight, renderFrame, initResources = None
         glfw.poll_events()
         impl.process_inputs()
 
+        time += 1
+
 
     glfw.terminate()
 
@@ -612,17 +616,26 @@ def runProgram(title, startWidth, startHeight, renderFrame, initResources = None
 # this is easiest using the render-buffer APIs. The call to 'glBlitFramebuffer' 'resolves' i.e, averages the multi-sampled image to
 # the non-MSAA default frame buffer (Note that creating a MSAA frame buffer and blitting to it may cause problems).
 def setupFbo(msaaFbo, fboWidth, fboHeight, numSamples, colorRenderBuffer = 0, depthRenderBuffer = 0):
+    # Make the render buffers
     if not colorRenderBuffer:
         colorRenderBuffer, depthRenderBuffer = glGenRenderbuffers(2)
+    # Configure the settings for the color render buffer
     glBindRenderbuffer(GL_RENDERBUFFER, colorRenderBuffer)
     glRenderbufferStorageMultisample(GL_RENDERBUFFER, numSamples, GL_RGB8, fboWidth, fboHeight)
+    # Condifure the settings for the depth render buffer
     glBindRenderbuffer(GL_RENDERBUFFER, depthRenderBuffer)
     glRenderbufferStorageMultisample(GL_RENDERBUFFER, numSamples, GL_DEPTH_COMPONENT32, fboWidth, fboHeight)
+    # Go back to using the regular render buffer
     glBindRenderbuffer(GL_RENDERBUFFER, 0)
 
+    # Use the msaa Fbo (passed in)
     glBindFramebuffer(GL_FRAMEBUFFER, msaaFbo)
+
+    # Render the fbo content to the buffer
     glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_RENDERBUFFER, colorRenderBuffer)
     glFramebufferRenderbuffer(GL_FRAMEBUFFER, GL_DEPTH_ATTACHMENT, GL_RENDERBUFFER, depthRenderBuffer)
+
+    # Go back to using the regular render buffer
     glBindFramebuffer(GL_FRAMEBUFFER, 0)
 
     return colorRenderBuffer, depthRenderBuffer

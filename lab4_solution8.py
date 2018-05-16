@@ -3,6 +3,7 @@ import math
 import numpy as np
 import time
 import imgui
+from math import *
 
 import magic
 # We import the 'lab_utils' module as 'lu' to save a bit of typing while still clearly marking where the code came from.
@@ -10,6 +11,8 @@ import lab_utils as lu
 from ObjModel import ObjModel
 import glob
 import os
+
+from Sphere import Sphere
 
 g_lightYaw = 25.0
 g_lightYawSpeed = 0.0#145.0
@@ -70,7 +73,7 @@ def update(dt, keys, mouseDelta):
 
 
 # This function is called by the 'magic' to draw a frame width, height are the size of the frame buffer, or window
-def renderFrame(xOffset, width, height):
+def renderFrame(xOffset, width, height, time):
     global g_camera
     global g_yFovDeg
     global g_model
@@ -78,12 +81,37 @@ def renderFrame(xOffset, width, height):
     lightRotation = lu.Mat3(lu.make_rotation_y(math.radians(g_lightYaw))) * lu.Mat3(lu.make_rotation_x(math.radians(g_lightPitch))) 
     lightPosition = g_model.centre + lightRotation * lu.vec3(0,0,g_lightDistance)
 
+    spherePosition = lu.vec3(0, 0, 0)
+
+    sunPosition = lu.vec3(0, 0, 0)
+
+    # x x y y 
+    # y x
+    radius = sqrt(80 * 80 + 0 * 0)
+    theta = atan2(0, 80)
+    theta += time*0.01
+    x = radius * cos(theta)
+    y = radius * sin(theta)
+
+    mercuryPosition = lu.vec3(x, y, 0)
+
+    # x x y y 
+    # y x
+    x = 300
+    radius = sqrt(300 * 300 + 0 * 0)
+    theta = atan2(0, 300)
+    theta += time*0.05
+    x = radius * cos(theta)
+    y = radius * sin(theta)
+
+    saturnPosition = lu.vec3(x, y, 0)
+
     # This configures the fixed-function transformation from Normalized Device Coordinates (NDC)
     # to the screen (pixels - called 'window coordinates' in OpenGL documentation).
     #   See: https://www.khronos.org/registry/OpenGL-Refpages/gl4/html/glViewport.xhtml
     glViewport(xOffset, 0, width, height)
     # Set the colour we want the frame buffer cleared to, 
-    glClearColor(0.05, 0.1, 0.05, 1.0)
+    glClearColor(0.1, 0.1, 0.1, 1.0)
     # Tell OpenGL to clear the render target to the clear values for both depth and colour buffers (depth uses the default)
     glClear(GL_DEPTH_BUFFER_BIT | GL_COLOR_BUFFER_BIT)
 
@@ -119,14 +147,11 @@ def renderFrame(xOffset, width, height):
         "modelToViewTransform" : modelToViewTransform,
         "modelToViewNormalTransform" : modelToViewNormalTransform,
     }
-    
-    g_model.render(g_shader, ObjModel.RF_Opaque, transforms)
-    glEnable(GL_BLEND)
-    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA)
-    g_model.render(g_shader, ObjModel.RF_Transparent| ObjModel.RF_AlphaTested, transforms)
-    glDisable(GL_BLEND)
 
-    lu.drawSphere(lightPosition, 10.0, [1,1,0,1], viewToClipTransform, worldToViewTransform)
+    shader = Sphere.makeShader()
+    Sphere.drawSphereWithShader(sunPosition, 20.0, [1,1,0,1], viewToClipTransform, worldToViewTransform, lu.transformPoint(worldToViewTransform, lightPosition), shader)
+    Sphere.drawSphereWithShader(mercuryPosition, 10.0, [0,0,1,1], viewToClipTransform, worldToViewTransform, lu.transformPoint(worldToViewTransform, lightPosition), shader)
+    Sphere.drawSphereWithShader(saturnPosition, 15.0, [1,0,1,1], viewToClipTransform, worldToViewTransform, lu.transformPoint(worldToViewTransform, lightPosition), shader)
 
 def itemListCombo(currentItem, items, name):
     ind = items.index(currentItem)
