@@ -1,7 +1,28 @@
 from lab_utils import *
 from math import *
 
+import numpy
+from PIL import Image
+import random
+import os
+
 class Sphere:
+    @staticmethod
+    def textureFromImage(filename):
+        img = Image.open(filename)
+        img_data = numpy.array(list(img.getdata()), numpy.uint8)
+
+        texture = glGenTextures(1)
+
+        glBindTexture(GL_TEXTURE_2D, texture)
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT)
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT)
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR)
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR)
+        glGenerateMipmap(GL_TEXTURE_2D)
+
+        return texture
+
     # Recursively subdivide a triangle with its vertices on the surface of the unit sphere such that the new vertices also are on part of the unit sphere.
     @staticmethod
     def subDivide(dest, v0, v1, v2, level):
@@ -139,71 +160,128 @@ class Sphere:
         glDrawArrays(GL_TRIANGLES, 0, g_numSphereVerts)
 
     @staticmethod
-    def makeShader():        
-        vertexShader = """
-            #version 330
-            in vec3 positionIn;
-            in vec3 normalIn;
+    def makeShader(vertexShaderPath, fragmentShaderPath):        
 
-            uniform mat4 modelToClipTransform;
-            uniform mat4 modelToViewTransform;
-            uniform mat3 modelToViewNormalTransform;
+        with open(vertexShaderPath, 'r') as myfile:
+            vertexShader=myfile.read()
 
-            // 'out' variables declared in a vertex shader can be accessed in the subsequent stages.
-            // For a fragment shader the variable is interpolated (the type of interpolation can be modified, try placing 'flat' in front here and in the fragment shader!).
-            out VertexData
-            {
-                vec3 v2f_viewSpacePosition;
-                vec3 v2f_viewSpaceNormal;
-            };
+        with open(fragmentShaderPath, 'r') as myfile:
+            fragmentShader=myfile.read()
 
-            void main() 
-            {
-                v2f_viewSpacePosition = (modelToViewTransform * vec4(positionIn, 1.0)).xyz;
-                v2f_viewSpaceNormal = normalize(modelToViewNormalTransform * normalIn);
-
-                // gl_Position is a buit-in 'out'-variable that gets passed on to the clipping and rasterization stages (hardware fixed function).
-                // it must be written by the vertex shader in order to produce any drawn geometry. 
-                // We transform the position using one matrix multiply from model to clip space. Note the added 1 at the end of the position to make the 3D
-                // coordinate homogeneous.
-                gl_Position = modelToClipTransform * vec4(positionIn, 1.0);
-            }
-"""
-
-        fragmentShader = """
-            #version 330
-            // Input from the vertex shader, will contain the interpolated (i.e., area weighted average) vaule out put for each of the three vertex shaders that 
-            // produced the vertex data for the triangle this fragmet is part of.
-            in VertexData
-            {
-                vec3 v2f_viewSpacePosition;
-                vec3 v2f_viewSpaceNormal;
-            };
-
-            // Other uniforms used by the shader
-            uniform vec4 sphereColour;
-
-            uniform vec3 viewSpaceLightPosition;
-            uniform vec3 lightColourAndIntensity;
-            uniform vec3 ambientLightColourAndIntensity;
-
-
-            out vec4 fragmentColor;
-
-            void main() 
-            {
-                float shading = max(0.0, dot(normalize(viewSpaceLightPosition-v2f_viewSpacePosition), v2f_viewSpaceNormal));
-
-                float distance = length(viewSpaceLightPosition-v2f_viewSpacePosition);
-                float attenuation = 1/(1.0 + 0.00000005 * distance + 0.00002 * distance * distance);
-
-                fragmentColor = vec4(sphereColour.xyz * shading * attenuation + vec3(0.2, 0.0, 0.0), sphereColour.w);
-            }
-"""
         g_sphereShader = buildShader([vertexShader], [fragmentShader], {"positionIn" : 0, "normalIn" : 1})
 
         return g_sphereShader
 
+    @staticmethod
+    def createAndAddVertexArrayData(arrayObject, data, attributeIndex):
+        glBindVertexArray(arrayObject)
+        buffer = glGenBuffers(1)
+
+        flatData = flatten(data) # Turns 3d Array into a 1D Array
+        data_buffer = (c_float * len(flatData))(*flatData)
+        glBindBuffer(GL_ARRAY_BUFFER, buffer)
+        glBufferData(GL_ARRAY_BUFFER, data_buffer, GL_STATIC_DRAW)
+
+        glBindBuffer(GL_ARRAY_BUFFER, buffer)
+        glVertexAttribPointer(attributeIndex, len(data[0]), GL_FLOAT, GL_FALSE, 0, None)
+        glEnableVertexAttribArray(attributeIndex)
+
+        # Unbind the buffers again to avoid unintentianal GL state corruption (this is something that can be rather inconventient to debug)
+        glBindBuffer(GL_ARRAY_BUFFER, 0)
+        glBindVertexArray(0)
+
+    @staticmethod
+    def drawSphereWithTexture(position, radius, texturePath, viewToClipTransform, worldToViewTransform):
+
+        attributeIndexForPosition = 0
+
+        modelToWorldTransform = make_translation(position[0], position[1], position[2]) * make_scale(radius, radius, radius);
+
+        # Make the nx3 matrix of sphere coords
+        sphereVerts = createSphere(3)
+        # Make a vertex array object
+        g_sphereVertexArrayObject = glGenVertexArrays(1)
+        # We need this when we draw everything
+        g_numSphereVerts = len(sphereVerts)
+
+        # Setup positions
+        Sphere.createAndAddVertexArrayData(g_sphereVertexArrayObject, sphereVerts, 0)
+        # Setup normals
+        Sphere.createAndAddVertexArrayData(g_sphereVertexArrayObject, sphereVerts, 1)
+
+        # Make colors
+        Sphere.createAndAddVertexArrayData(g_sphereVertexArrayObject, sphereVerts, 2)
+
+        vertexShader = """
+        #version 330
+        in vec3 positionIn;
+        in vec3 normalIn;
+        in vec3 fragmentColorIn;
+
+        out VertexData
+            {
+                vec3 v2f_viewSpacePosition;
+                vec3 v2f_viewSpaceNormal;
+                vec3 fragmentColor;
+            };
+
+        uniform mat4 modelToClipTransform;
+        uniform mat4 modelToViewTransform;
+        uniform mat3 modelToViewNormalTransform;
+
+        void main(){
+            fragmentColor = fragmentColorIn;
+            v2f_viewSpacePosition = (modelToViewTransform * vec4(positionIn, 1.0)).xyz;
+            v2f_viewSpaceNormal = normalize(modelToViewNormalTransform * normalIn);
+
+            // gl_Position is a buit-in 'out'-variable that gets passed on to the clipping and rasterization stages (hardware fixed function).
+            // it must be written by the vertex shader in order to produce any drawn geometry. 
+            // We transform the position using one matrix multiply from model to clip space. Note the added 1 at the end of the position to make the 3D
+            // coordinate homogeneous.
+            gl_Position = modelToClipTransform * vec4(positionIn, 1.0);
+        }
+        """
+
+        fragmentShader = """
+        #version 330
+        in VertexData
+        {
+            vec3 v2f_viewSpacePosition;
+            vec3 v2f_viewSpaceNormal;
+            vec3 fragmentColor;
+        };
+
+        out vec3 color;
+
+        void main(){
+            // Output color = color specified in the vertex shader,
+            // interpolated between all 3 surrounding vertices
+            color = fragmentColor;
+        }
+        """
+
+        shader = glCreateProgram()
+
+        compileAndAttachShader(shader, GL_VERTEX_SHADER, vertexShader)
+        compileAndAttachShader(shader, GL_FRAGMENT_SHADER, fragmentShader)
+
+        glBindAttribLocation(shader, 0, "v2f_viewSpacePosition")
+        glBindAttribLocation(shader, 1, "v2f_viewSpaceNormal")
+        glBindAttribLocation(shader, 2, "fragmentColorIn")
+
+        glLinkProgram(shader)
+        glUseProgram(shader)
+
+        modelToClipTransform = viewToClipTransform * worldToViewTransform * modelToWorldTransform
+        modelToViewTransform = worldToViewTransform * modelToWorldTransform
+        modelToViewNormalTransform = inverse(transpose(Mat3(modelToViewTransform)))
+        setUniform(shader, "modelToClipTransform", modelToClipTransform)
+        setUniform(shader, "modelToViewTransform", modelToViewTransform)
+        setUniform(shader, "modelToViewNormalTransform", modelToViewNormalTransform)
+
+
+        glBindVertexArray(g_sphereVertexArrayObject)
+        glDrawArrays(GL_TRIANGLES, 0, g_numSphereVerts)
 
 
     @staticmethod

@@ -106,6 +106,17 @@ def renderFrame(xOffset, width, height, time):
 
     saturnPosition = lu.vec3(x, y, 0)
 
+    # x x y y 
+    # y x
+    x = 500
+    radius = sqrt(x * x + 0 * 0)
+    theta = atan2(0, x)
+    theta += time*0.01
+    x = radius * cos(theta)
+    y = radius * sin(theta)
+
+    experimentPosition = lu.vec3(x, y, 0)
+
     # This configures the fixed-function transformation from Normalized Device Coordinates (NDC)
     # to the screen (pixels - called 'window coordinates' in OpenGL documentation).
     #   See: https://www.khronos.org/registry/OpenGL-Refpages/gl4/html/glViewport.xhtml
@@ -148,10 +159,18 @@ def renderFrame(xOffset, width, height, time):
         "modelToViewNormalTransform" : modelToViewNormalTransform,
     }
 
-    shader = Sphere.makeShader()
+    glEnable(GL_BLEND)
+    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA)
+
+    shader = Sphere.makeShader("./shaders/basicVertexShader.glsl", "./shaders/lightAttenuationColor.glsl")
     Sphere.drawSphereWithShader(sunPosition, 20.0, [1,1,0,1], viewToClipTransform, worldToViewTransform, lu.transformPoint(worldToViewTransform, lightPosition), shader)
     Sphere.drawSphereWithShader(mercuryPosition, 10.0, [0,0,1,1], viewToClipTransform, worldToViewTransform, lu.transformPoint(worldToViewTransform, lightPosition), shader)
     Sphere.drawSphereWithShader(saturnPosition, 15.0, [1,0,1,1], viewToClipTransform, worldToViewTransform, lu.transformPoint(worldToViewTransform, lightPosition), shader)
+
+    Sphere.drawSphereWithTexture(experimentPosition, 10.0, "", viewToClipTransform, worldToViewTransform)
+
+
+    glDisable(GL_BLEND)
 
 def itemListCombo(currentItem, items, name):
     ind = items.index(currentItem)
