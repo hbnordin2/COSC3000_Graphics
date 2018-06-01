@@ -25,5 +25,5 @@ void main()
     float attenuation = 1/(1.0 + 0.00000005 * distance + 0.00002 * distance * distance);
 
     // fragmentColor = vec4(sphereColour.xyz * shading * attenuation + vec3(0.2, 0.0, 0.0), sphereColour.w);
-    fragmentColor = vec4(sphereColour.xyz * shading * attenuation + vec3(0.2, 0.0, 0.0), 0.2);
+    fragmentColor = vec4(sphereColour.xyz * shading * attenuation + vec3(0.2, 0.0, 0.0), 1.0);
 }

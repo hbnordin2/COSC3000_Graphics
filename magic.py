@@ -17,6 +17,8 @@ from lab_utils import Mat3, Mat4, make_translation, normalize
 
 from ObjModel import ObjModel
 import lab_utils as lu
+from PIL import Image
+import numpy
 
 g_mousePos = [0.0, 0.0]
 
@@ -522,6 +524,34 @@ def cleaupGlResources():
         glDeleteTextures(g_screenCaptureTexture)
         g_screenCaptureTexture = None
 
+class AllTextures:
+    def __init__(self):
+        self.texture = glGenTextures(1)
+
+        self.imgSun = Image.open("images/sun.png")
+        self.dataSun = numpy.array(list(self.imgSun.getdata()), numpy.uint8)
+        self.widthSun = self.imgSun.size[0]
+        self.heightSun = self.imgSun.size[1]
+
+        self.fileNames = ["fire.png", "planet1.png", "planet2.png", "planet3.png", "stars.png", "sun.png", "stars2.jpg", "stars3.png"]
+        self.images = [Image.open("images/" + i) for i in self.fileNames]
+        self.data = [numpy.array(list(i.getdata()), numpy.uint8) for i in self.images]
+        self.widths = [i.size[0] for i in self.images]
+        self.heights = [i.size[1] for i in self.images]
+
+    def getDetails(self, fileName):
+        indexHold = 0
+
+        for i, name in enumerate(self.fileNames):
+            if name == fileName:
+                indexHold = i
+
+        return {"data": self.data[indexHold], "width": self.widths[indexHold], "height": self.heights[indexHold]}
+
+class AllVAOs:
+    def __init__(self):
+        self.vao = glGenVertexArrays(1)
+
 def runProgram(title, startWidth, startHeight, renderFrame, initResources = None, drawUi = None, update = None):
     global g_simpleShader
     global g_vertexArrayObject
@@ -540,6 +570,11 @@ def runProgram(title, startWidth, startHeight, renderFrame, initResources = None
     prevMouseX,prevMouseY = glfw.get_cursor_pos(window)
 
     time = 0
+
+    textures = AllTextures()
+    vao = AllVAOs()
+
+    glDisable(GL_CULL_FACE)
 
     while not glfw.window_should_close(window):
         prevTime = currentTime
@@ -584,7 +619,7 @@ def runProgram(title, startWidth, startHeight, renderFrame, initResources = None
 
         drawWidth -= uiWidth
 
-        renderFrame(uiWidth, drawWidth, height, time)
+        renderFrame(uiWidth, drawWidth, height, time, textures, vao)
     
         #drawCoordinateSystem()
 
